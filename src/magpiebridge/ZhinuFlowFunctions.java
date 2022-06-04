@@ -1,9 +1,5 @@
 package magpiebridge;
 
-import java.util.LinkedList;
-import java.util.List;
-import java.util.Set;
-
 import com.ibm.wala.cast.loader.AstMethod;
 import com.ibm.wala.cast.tree.CAstSourcePositionMap;
 import com.ibm.wala.cast.types.AstMethodReference;
@@ -32,6 +28,9 @@ import com.ibm.wala.util.collections.Pair;
 import com.ibm.wala.util.intset.IntSet;
 import com.ibm.wala.util.intset.IntSetUtil;
 import com.ibm.wala.util.intset.MutableIntSet;
+import java.util.LinkedList;
+import java.util.List;
+import java.util.Set;
 
 class ZhinuFlowFunctions
     implements IPartiallyBalancedFlowFunctions<BasicBlockInContext<IExplodedBasicBlock>> {
@@ -64,14 +63,20 @@ class ZhinuFlowFunctions
                 (SSAAbstractInvokeInstruction) du.getDef(inst.getUse(0));
             MethodReference callee = sanitize.getDeclaredTarget();
             if (callee.getSelector().equals(AstMethodReference.fnSelector)) {
-              Set<CGNode> callees = callGraph.getPossibleTargets(src.getNode(), sanitize.getCallSite());
-              for(CGNode calleeNode : callees) {
-            	  if (calleeNode.getMethod().getDeclaringClass().getName().toString().contains("isSafe")) {
-            		  return true;
-            	  }
+              Set<CGNode> callees =
+                  callGraph.getPossibleTargets(src.getNode(), sanitize.getCallSite());
+              for (CGNode calleeNode : callees) {
+                if (calleeNode
+                    .getMethod()
+                    .getDeclaringClass()
+                    .getName()
+                    .toString()
+                    .contains("isSafe")) {
+                  return true;
+                }
               }
             } else {
-            	return callee.getName().toString().contains("isSafe");
+              return callee.getName().toString().contains("isSafe");
             }
           }
         }
