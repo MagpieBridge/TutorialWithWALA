@@ -1,5 +1,9 @@
 package magpiebridge;
 
+import java.util.LinkedList;
+import java.util.List;
+import java.util.Set;
+
 import com.ibm.wala.cast.loader.AstMethod;
 import com.ibm.wala.cast.tree.CAstSourcePositionMap;
 import com.ibm.wala.cast.types.AstMethodReference;
@@ -28,8 +32,6 @@ import com.ibm.wala.util.collections.Pair;
 import com.ibm.wala.util.intset.IntSet;
 import com.ibm.wala.util.intset.IntSetUtil;
 import com.ibm.wala.util.intset.MutableIntSet;
-import java.util.LinkedList;
-import java.util.List;
 
 class ZhinuFlowFunctions
     implements IPartiallyBalancedFlowFunctions<BasicBlockInContext<IExplodedBasicBlock>> {
@@ -58,14 +60,19 @@ class ZhinuFlowFunctions
         if (inst instanceof SSAConditionalBranchInstruction) {
           DefUse du = src.getNode().getDU();
           if (du.getDef(inst.getUse(0)) instanceof SSAAbstractInvokeInstruction) {
-            MethodReference callee = ((SSAAbstractInvokeInstruction) inst).getDeclaredTarget();
-            String name;
+            SSAAbstractInvokeInstruction sanitize =
+                (SSAAbstractInvokeInstruction) du.getDef(inst.getUse(0));
+            MethodReference callee = sanitize.getDeclaredTarget();
             if (callee.getSelector().equals(AstMethodReference.fnSelector)) {
-              name = callee.getDeclaringClass().getName().toString();
+              Set<CGNode> callees = callGraph.getPossibleTargets(src.getNode(), sanitize.getCallSite());
+              for(CGNode calleeNode : callees) {
+            	  if (calleeNode.getMethod().getDeclaringClass().getName().toString().contains("isSafe")) {
+            		  return true;
+            	  }
+              }
             } else {
-              name = callee.getName().toString();
+            	return callee.getName().toString().contains("isSafe");
             }
-            return "isSafe".equals(name);
           }
         }
 
@@ -115,11 +122,11 @@ class ZhinuFlowFunctions
                 });
         propagate(ebb.getInstruction(), vn, r);
 
-        if (isSanitizerTest(ebb.getInstruction())) {
+        if (incoming != 0 && isSanitizerTest(ebb.getInstruction())) {
           SSACFG cfg = src.getNode().getIR().getControlFlowGraph();
-          BasicBlock from = cfg.getBlockForInstruction(ebb.getInstruction().iIndex());
-          BasicBlock to = cfg.getBlockForInstruction(dbb.getInstruction().iIndex());
-          if (Util.getTakenSuccessor(cfg, from).equals(to)) {
+          BasicBlock from = cfg.getNode(ebb.getOriginalNumber());
+          BasicBlock to = cfg.getNode(dbb.getOriginalNumber());
+          if (!Util.getTakenSuccessor(cfg, from).equals(to)) {
             r.remove(incoming);
           }
         }

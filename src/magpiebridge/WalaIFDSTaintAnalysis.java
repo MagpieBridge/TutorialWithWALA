@@ -110,7 +110,7 @@ public abstract class WalaIFDSTaintAnalysis
 
                         @Override
                         public String toString(boolean useMarkdown) {
-                          return "tainted flow";
+                          return "tainted flow step";
                         }
 
                         @Override

@@ -37,7 +37,7 @@ public class Main {
           new AnalysisConsumer() {
             @Override
             public void consume(Collection<AnalysisResult> results, String source) {
-              results.forEach(ar -> System.err.println(ar.toString(false)));
+              results.forEach(ar -> System.err.println(ar.toString(false) + " " + ar.position()));
             }
           };
 
