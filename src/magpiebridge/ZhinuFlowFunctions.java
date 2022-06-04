@@ -2,6 +2,8 @@ package magpiebridge;
 
 import com.ibm.wala.cast.loader.AstMethod;
 import com.ibm.wala.cast.tree.CAstSourcePositionMap;
+import com.ibm.wala.cast.types.AstMethodReference;
+import com.ibm.wala.cfg.Util;
 import com.ibm.wala.dataflow.IFDS.IPartiallyBalancedFlowFunctions;
 import com.ibm.wala.dataflow.IFDS.ISupergraph;
 import com.ibm.wala.dataflow.IFDS.IUnaryFlowFunction;
@@ -9,14 +11,19 @@ import com.ibm.wala.dataflow.IFDS.IdentityFlowFunction;
 import com.ibm.wala.ipa.callgraph.CGNode;
 import com.ibm.wala.ipa.callgraph.CallGraph;
 import com.ibm.wala.ipa.cfg.BasicBlockInContext;
+import com.ibm.wala.ssa.DefUse;
 import com.ibm.wala.ssa.SSAAbstractInvokeInstruction;
 import com.ibm.wala.ssa.SSABinaryOpInstruction;
+import com.ibm.wala.ssa.SSACFG;
+import com.ibm.wala.ssa.SSACFG.BasicBlock;
+import com.ibm.wala.ssa.SSAConditionalBranchInstruction;
 import com.ibm.wala.ssa.SSAInstruction;
 import com.ibm.wala.ssa.SSAPhiInstruction;
 import com.ibm.wala.ssa.SSAPiInstruction;
 import com.ibm.wala.ssa.SSAReturnInstruction;
 import com.ibm.wala.ssa.SSAUnaryOpInstruction;
 import com.ibm.wala.ssa.analysis.IExplodedBasicBlock;
+import com.ibm.wala.types.MethodReference;
 import com.ibm.wala.util.collections.Pair;
 import com.ibm.wala.util.intset.IntSet;
 import com.ibm.wala.util.intset.IntSetUtil;
@@ -46,6 +53,24 @@ class ZhinuFlowFunctions
     final IExplodedBasicBlock dbb = dest.getDelegate();
 
     return new IUnaryFlowFunction() {
+
+      private boolean isSanitizerTest(SSAInstruction inst) {
+        if (inst instanceof SSAConditionalBranchInstruction) {
+          DefUse du = src.getNode().getDU();
+          if (du.getDef(inst.getUse(0)) instanceof SSAAbstractInvokeInstruction) {
+            MethodReference callee = ((SSAAbstractInvokeInstruction) inst).getDeclaredTarget();
+            String name;
+            if (callee.getSelector().equals(AstMethodReference.fnSelector)) {
+              name = callee.getDeclaringClass().getName().toString();
+            } else {
+              name = callee.getName().toString();
+            }
+            return "isSafe".equals(name);
+          }
+        }
+
+        return false;
+      }
 
       private void propagate(
           SSAInstruction inst,
@@ -81,13 +106,23 @@ class ZhinuFlowFunctions
       @Override
       public IntSet getTargets(int d1) {
         Pair<Integer, List<CAstSourcePositionMap.Position>> vn = domain.getMappedObject(d1);
-        MutableIntSet r = IntSetUtil.make(new int[] {domain.getMappedIndex(vn)});
+        int incoming = domain.getMappedIndex(vn);
+        MutableIntSet r = IntSetUtil.make(new int[] {incoming});
         dbb.iteratePhis()
             .forEachRemaining(
                 (inst) -> {
                   propagate(inst, vn, r);
                 });
         propagate(ebb.getInstruction(), vn, r);
+
+        if (isSanitizerTest(ebb.getInstruction())) {
+          SSACFG cfg = src.getNode().getIR().getControlFlowGraph();
+          BasicBlock from = cfg.getBlockForInstruction(ebb.getInstruction().iIndex());
+          BasicBlock to = cfg.getBlockForInstruction(dbb.getInstruction().iIndex());
+          if (Util.getTakenSuccessor(cfg, from).equals(to)) {
+            r.remove(incoming);
+          }
+        }
 
         return r;
       }

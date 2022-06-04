@@ -30,10 +30,6 @@ public class ZhinuProblem
   private WalaTaintAnalysis<Function<BasicBlockInContext<IExplodedBasicBlock>, Boolean>> analysis;
   private final ZhinuFlowFunctions flowFunctions;
 
-  /** path edges corresponding to taint sources */
-  private final Collection<PathEdge<BasicBlockInContext<IExplodedBasicBlock>>> initialSeeds =
-      collectInitialSeeds();
-
   public ZhinuProblem(
       ISupergraph<BasicBlockInContext<IExplodedBasicBlock>, CGNode> supergraph,
       ZhinuDomain domain,
@@ -43,7 +39,11 @@ public class ZhinuProblem
     this.domain = domain;
     this.analysis = analysis;
     flowFunctions = new ZhinuFlowFunctions(supergraph, domain, callGraph);
+    initialSeeds = collectInitialSeeds();
   }
+
+  /** path edges corresponding to taint sources */
+  private final Collection<PathEdge<BasicBlockInContext<IExplodedBasicBlock>>> initialSeeds;
 
   /**
    * we use the entry block of the CGNode as the fake entry when propagating from callee to caller
